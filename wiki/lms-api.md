@@ -12,7 +12,7 @@ The port number is the value of [`LMS_API_HOST_PORT`](./dotenv-docker-secret.md#
 
 The [LMS API host port](#lms-api-host-port).
 
-## LMS API URL
+## LMS API base URL
 
 > [!NOTE]
 >
@@ -27,9 +27,9 @@ Replace the placeholders:
 - [`<your-vm-ip-address>`](./vm.md#your-vm-ip-address-placeholder)
 - [`<lms-api-host-port>`](./lms-api.md#lms-api-host-port-placeholder)
 
-### `<lms-api-url>` placeholder
+### `<lms-api-base-url>` placeholder
 
-[LMS API URL](#lms-api-url) (without `<` and `>`).
+[LMS API base URL](#lms-api-base-url) (without `<` and `>`).
 
 ## `Caddy`
 
