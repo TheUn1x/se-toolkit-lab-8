@@ -2,7 +2,6 @@
 
 import json
 import os
-import sys
 import tempfile
 
 CONFIG = "/app/nanobot/config.json"
@@ -15,6 +14,15 @@ _FORWARD_VARS = ["NANOBOT_LMS_BACKEND_URL"]
 def main() -> None:
     with open(CONFIG) as f:
         config = json.load(f)
+
+    # Network settings are controlled exclusively via env vars.
+    webchat = config.setdefault("channels", {}).setdefault("webchat", {})
+    webchat["host"] = os.environ.get("NANOBOT_WEBCHAT_CONTAINER_ADDRESS", "0.0.0.0")
+    webchat["port"] = int(os.environ.get("NANOBOT_WEBCHAT_CONTAINER_PORT", "8765"))
+
+    gateway = config.setdefault("gateway", {})
+    gateway["host"] = os.environ.get("NANOBOT_GATEWAY_CONTAINER_ADDRESS", "0.0.0.0")
+    gateway["port"] = int(os.environ.get("NANOBOT_GATEWAY_CONTAINER_PORT", "18790"))
 
     mcp_servers = config.get("tools", {}).get("mcp_servers", {})
     if mcp_servers:

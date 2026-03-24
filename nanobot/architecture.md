@@ -31,11 +31,11 @@ nanobot/
 
 ## How clients connect
 
-Both the Flutter web app and the Telegram bot connect to the **same nanobot instance** over WebSocket. The nanobot gateway exposes a single webchat channel on port 8765.
+Both the Flutter web app and the Telegram bot connect to the **same nanobot instance** over WebSocket. The nanobot gateway exposes a single webchat channel on the port configured by `NANOBOT_WEBCHAT_CONTAINER_PORT` (default 8765).
 
 ```
-Flutter app        →  WebSocket (ws://nanobot:8765)  →  nanobot agent
-Telegram bot       →  WebSocket (ws://nanobot:8765)  →  nanobot agent
+Flutter app        →  WebSocket (ws://nanobot:<NANOBOT_WEBCHAT_CONTAINER_PORT>)  →  nanobot agent
+Telegram bot       →  WebSocket (ws://nanobot:<NANOBOT_WEBCHAT_CONTAINER_PORT>)  →  nanobot agent
 ```
 
 The Telegram bot (`client-telegram-bot/`) is a standalone aiogram service. It handles slash commands directly via the LMS backend API and forwards free-text messages to nanobot over WebSocket.
@@ -44,14 +44,14 @@ The Telegram bot (`client-telegram-bot/`) is a standalone aiogram service. It ha
 
 | Service               | Image source            | Purpose                                              |
 | --------------------- | ----------------------- | ---------------------------------------------------- |
-| `nanobot`             | `./nanobot`             | AI agent gateway with webchat WebSocket (port 8765)  |
+| `nanobot`             | `./nanobot`             | AI agent gateway with webchat WebSocket              |
 | `client-telegram-bot` | `./client-telegram-bot` | Telegram bot — slash commands + WebSocket forwarding |
 
-Caddy reverse-proxies the nanobot instance: `/utils/nanobot*` → port 18790, `/ws/chat` → port 8765.
+Caddy reverse-proxies the nanobot instance: `/utils/nanobot*` → `NANOBOT_GATEWAY_CONTAINER_PORT`, `/ws/chat` → `NANOBOT_WEBCHAT_CONTAINER_PORT`.
 
 ## WebSocket protocol
 
-Clients connect to `ws://nanobot:8765` and exchange JSON messages:
+Clients connect to `ws://nanobot:<NANOBOT_WEBCHAT_CONTAINER_PORT>` and exchange JSON messages:
 
 - **Send**: `{"content": "user message"}`
 - **Receive**: `{"content": "agent response"}`
@@ -65,7 +65,7 @@ Each WebSocket connection gets its own chat session (UUID-based). The agent proc
 ```
 User sends text in Telegram
   → aiogram receives via long polling
-  → bot opens WebSocket to nanobot (ws://nanobot:8765)
+  → bot opens WebSocket to nanobot (NANOBOT_WS_URL)
   → sends {"content": text}
   → nanobot agent reasons with LLM, may call tools
   → agent produces response
@@ -88,11 +88,15 @@ No agent involvement. Sub-second response. Commands: `/start`, `/help`, `/health
 
 ### nanobot service
 
-| Variable                              | Purpose                                       |
-| ------------------------------------- | --------------------------------------------- |
-| `NANOBOT_LMS_BACKEND_URL`             | Backend URL forwarded to the LMS MCP server   |
-| `NANOBOT_PROVIDERS__CUSTOM__API_KEY`  | LLM API key                                   |
-| `NANOBOT_PROVIDERS__CUSTOM__API_BASE` | LLM API base URL                              |
+| Variable                              | Purpose                                            |
+| ------------------------------------- | -------------------------------------------------- |
+| `NANOBOT_LMS_BACKEND_URL`             | Backend URL forwarded to the LMS MCP server        |
+| `NANOBOT_PROVIDERS__CUSTOM__API_KEY`  | LLM API key                                        |
+| `NANOBOT_PROVIDERS__CUSTOM__API_BASE` | LLM API base URL                                   |
+| `NANOBOT_GATEWAY_CONTAINER_ADDRESS`   | Gateway bind address (default `0.0.0.0`)           |
+| `NANOBOT_GATEWAY_CONTAINER_PORT`      | Gateway HTTP port (default `18790`)                |
+| `NANOBOT_WEBCHAT_CONTAINER_ADDRESS`   | WebChat WebSocket bind address (default `0.0.0.0`) |
+| `NANOBOT_WEBCHAT_CONTAINER_PORT`      | WebChat WebSocket port (default `8765`)            |
 
 ### client-telegram-bot service
 
@@ -101,7 +105,7 @@ No agent involvement. Sub-second response. Commands: `/start`, `/help`, `/health
 | `BOT_TOKEN`        | Telegram bot token                          |
 | `LMS_API_KEY`      | Backend auth for direct slash commands      |
 | `LMS_API_BASE_URL` | Backend URL for direct slash commands       |
-| `NANOBOT_WS_URL`   | Nanobot WebSocket URL (`ws://nanobot:8765`) |
+| `NANOBOT_WS_URL`   | Nanobot WebSocket URL                       |
 
 ## Debugging checklist
 
@@ -109,7 +113,7 @@ No agent involvement. Sub-second response. Commands: `/start`, `/help`, `/health
 
 2. **`TelegramConflictError`**: Two processes are polling the same bot token. Stop orphan containers with the same token.
 
-3. **Free text returns "Could not reach the AI agent"**: The nanobot service is down or unreachable. Check `docker compose logs nanobot` and verify the webchat channel started on port 8765.
+3. **Free text returns "Could not reach the AI agent"**: The nanobot service is down or unreachable. Check `docker compose logs nanobot` and verify the webchat channel started on the expected port (`NANOBOT_WEBCHAT_CONTAINER_PORT`).
 
 4. **Slash commands return "LMS client not configured"**: `LMS_API_BASE_URL` or `LMS_API_KEY` env vars are missing from the client-telegram-bot service.
 
