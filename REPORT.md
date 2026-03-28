@@ -187,3 +187,151 @@ nanobot-1  | Response to webchat:...
 - **Caddy routes configured:** ✅ `/ws/chat` proxied to nanobot, `/flutter` serves Flutter app
 - **Flutter client accessible:** ✅ Available at `http://<vm-ip>:42002/flutter`
 - **End-to-end flow working:** ✅ Browser → Caddy → WebSocket → nanobot → MCP tools → Backend
+
+---
+
+# Task 3 — Give the Agent New Eyes (Observability)
+
+## Task 3A — Structured logging
+
+### Checkpoint 1: Happy-path log excerpt
+
+**Command:** `docker compose --env-file .env.docker.secret logs backend --tail 30`
+
+**Response (healthy request):**
+```
+2026-03-28 21:07:47,683 INFO [lms_backend.main] [main.py:62] [trace_id=0f1a6d43d343c190e5b2c6b40551102f span_id=004720a2d8577aaf resource.service.name=Learning Management Service trace_sampled=True] - request_started
+2026-03-28 21:07:47,687 INFO [lms_backend.auth] [auth.py:30] [trace_id=0f1a6d43d343c190e5b2c6b40551102f span_id=004720a2d8577aaf resource.service.name=Learning Management Service trace_sampled=True] - auth_success
+2026-03-28 21:07:47,690 INFO [lms_backend.db.items] [items.py:16] [trace_id=0f1a6d43d343c190e5b2c6b40551102f span_id=004720a2d8577aaf resource.service.name=Learning Management Service trace_sampled=True] - db_query
+2026-03-28 21:07:47,697 INFO [lms_backend.main] [main.py:74] [trace_id=0f1a6d43d343c190e5b2c6b40551102f span_id=004720a2d8577aaf resource.service.name=Learning Management Service trace_sampled=True] - request_completed
+INFO:     172.18.0.3:47480 - "GET /items/ HTTP/1.1" 200 OK
+```
+
+**Observation:** The healthy request flow shows: `request_started` → `auth_success` → `db_query` → `request_completed` with status 200.
+
+### Checkpoint 2: Error-path log excerpt
+
+**After stopping PostgreSQL:**
+
+```
+2026-03-28 21:44:03,601 INFO [lms_backend.main] [main.py:62] [trace_id=a2ab11f6862417ce696b0b9eab874890 span_id=b9e60257dee9116c resource.service.name=Learning Management Service trace_sampled=True] - request_started
+2026-03-28 21:44:03,602 INFO [lms_backend.auth] [auth.py:30] [trace_id=a2ab11f6862417ce696b0b9eab874890 span_id=b9e60257dee9116c resource.service.name=Learning Management Service trace_sampled=True] - auth_success
+2026-03-28 21:44:03,602 INFO [lms_backend.db.items] [items.py:16] [trace_id=a2ab11f6862417ce696b0b9eab874890 span_id=b9e60257dee9116c resource.service.name=Learning Management Service trace_sampled=True] - db_query
+2026-03-28 21:44:03,687 ERROR [lms_backend.db.items] [items.py:23] [trace_id=a2ab11f6862417ce696b0b9eab874890 span_id=b9e60257dee9116c resource.service.name=Learning Management Service trace_sampled=True] - db_query
+    error: "(sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'>: connection is closed"
+2026-03-28 21:44:03,688 WARNING [lms_backend.routers.items] [items.py:23] [trace_id=a2ab11f6862417ce696b0b9eab874890 span_id=b9e60257dee9116c resource.service.name=Learning Management Service trace_sampled=True] - items_list_failed_as_not_found
+2026-03-28 21:44:03,702 INFO [lms_backend.main] [main.py:74] [trace_id=a2ab11f6862417ce696b0b9eab874890 span_id=b9e60257dee9116c resource.service.name=Learning Management Service trace_sampled=True] - request_completed
+INFO:     172.18.0.10:33450 - "GET /items/ HTTP/1.1" 404 Not Found
+```
+
+**Observation:** The error log shows `ERROR` level with `db_query` event and the SQL connection error.
+
+### Checkpoint 3: VictoriaLogs query result
+
+**Query:** `_time:1h service.name:"Learning Management Service" severity:ERROR`
+
+**VictoriaLogs API response:**
+```json
+{
+  "_msg": "db_query",
+  "error": "(sqlalchemy.dialects.postgresql.asyncpg.InterfaceError) <class 'asyncpg.exceptions._base.InterfaceError'>: connection is closed",
+  "event": "db_query",
+  "service.name": "Learning Management Service",
+  "severity": "ERROR",
+  "trace_id": "a2ab11f6862417ce696b0b9eab874890"
+}
+```
+
+**Observation:** VictoriaLogs provides structured JSON with all fields filterable. Much easier than grepping docker compose logs.
+
+---
+
+## Task 3B — Traces
+
+### Checkpoint 1: Healthy trace
+
+**Trace ID:** `0f1a6d43d343c190e5b2c6b40551102f`
+
+**Span hierarchy:**
+```
+- GET /items/: 8 spans total
+  - SELECT db-lab-8 (database query)
+  - GET /items/ http send (response)
+  - auth (authentication)
+  - request_started, request_completed
+```
+
+### Checkpoint 2: Error trace
+
+**Trace ID:** `a2ab11f6862417ce696b0b9eab874890`
+
+**Span hierarchy with error:**
+```
+- GET /items/: 6 spans total
+  - SELECT db-lab-8 ⚠️ ERROR
+    Error: "connection is closed"
+  - GET /items/ http send
+  - connect
+```
+
+**Observation:** The error trace clearly shows the database span failed with "connection is closed" error.
+
+---
+
+## Task 3C — Observability MCP tools
+
+### Checkpoint 1: Normal conditions (no recent errors)
+
+**Question:** "Any LMS backend errors in the last 10 minutes?"
+
+**Agent tool calls:**
+```
+Tool call: mcp_obs_mcp_obs_logs_error_count({"service": "Learning Management Service", "time_range": "10m"})
+Tool call: mcp_obs_mcp_obs_logs_search({"query": "service.name:\"Learning Management Service\" severity:ERROR", "time_range": "10m"})
+```
+
+**Agent response:**
+```
+I checked for LMS backend errors in the last 10 minutes. No errors were found.
+The Learning Management Service is running normally.
+```
+
+### Checkpoint 2: After triggering failure (PostgreSQL stopped)
+
+**Question:** "Any LMS backend errors in the last 10 minutes?"
+
+**Agent tool calls:**
+```
+Tool call: mcp_obs_mcp_obs_logs_error_count({"service": "Learning Management Service", "time_range": "10m"})
+Tool call: mcp_obs_mcp_obs_logs_search({"query": "service.name:\"Learning Management Service\" severity:ERROR", "time_range": "10m"})
+Tool call: mcp_lms_lms_health({})
+Tool call: mcp_lms_lms_labs({})
+```
+
+**Agent response:**
+```
+Based on my checks, the LMS backend is currently experiencing issues. Here's what I found:
+
+1. Database connection errors detected in the last 10 minutes
+2. Error: "connection is closed" - PostgreSQL appears to be unavailable
+3. The health check confirms the backend is struggling to connect to the database
+
+The errors started when the database became unreachable. Requests are failing at the db_query step.
+```
+
+**Observation:** The agent correctly:
+1. Used `logs_error_count` to check for errors
+2. Used `logs_search` to inspect error details
+3. Extracted the error message from logs
+4. Provided a concise summary without dumping raw JSON
+
+---
+
+## Summary Task 3
+
+- **Structured logging understood:** ✅ Can identify `request_started`, `auth_success`, `db_query`, `request_completed` events
+- **VictoriaLogs queries working:** ✅ Can filter by `service.name`, `severity`, `trace_id`
+- **VictoriaTraces explored:** ✅ Can view span hierarchy and identify error spans
+- **MCP observability tools created:** ✅ 4 tools (`logs_search`, `logs_error_count`, `traces_list`, `traces_get`)
+- **Observability skill written:** ✅ Teaches agent to search logs first, then fetch traces
+- **Agent answers observability questions:** ✅ Correctly reports errors under both normal and failure conditions

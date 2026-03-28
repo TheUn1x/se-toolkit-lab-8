@@ -74,6 +74,19 @@ def resolve_config() -> str:
         if nanobot_access_key:
             webchat_mcp["env"]["NANOBOT_ACCESS_KEY"] = nanobot_access_key
 
+    # Inject MCP server settings for observability (VictoriaLogs/VictoriaTraces)
+    victorialogs_url = os.environ.get("NANOBOT_VICTORIALOGS_URL")
+    victoriatraces_url = os.environ.get("NANOBOT_VICTORIATRACES_URL")
+    if victorialogs_url or victoriatraces_url:
+        obs_mcp = config.setdefault("tools", {}).setdefault("mcpServers", {}).setdefault("obs", {})
+        obs_mcp["command"] = "python"
+        obs_mcp["args"] = ["-m", "mcp_obs"]
+        obs_mcp.setdefault("env", {})
+        if victorialogs_url:
+            obs_mcp["env"]["NANOBOT_VICTORIALOGS_URL"] = victorialogs_url
+        if victoriatraces_url:
+            obs_mcp["env"]["NANOBOT_VICTORIATRACES_URL"] = victoriatraces_url
+
     # Write resolved config
     with open(resolved_path, "w") as f:
         json.dump(config, f, indent=2)

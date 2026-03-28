@@ -20,7 +20,7 @@ WORKDIR /app
 # Copy workspace root files for dependency resolution (from additional_contexts)
 COPY --from=workspace pyproject.toml uv.lock ./
 
-# Copy mcp for mcp-lms workspace dependency
+# Copy mcp for mcp-lms and mcp-obs workspace dependencies
 COPY --from=workspace mcp ./mcp
 
 # Copy nanobot-websocket-channel for webchat packages
