@@ -3,11 +3,11 @@ members = [
   "backend",
   "qwen-code-api",
   "mcp/mcp-lms",
+  "mcp/mcp-obs",
   "nanobot",
   "nanobot-websocket-channel/nanobot-webchat",
   "nanobot-websocket-channel/mcp-webchat",
   # Uncomment these later in the lab after you add the matching repos/packages.
-  # "mcp/mcp-obs",
   # "nanobot-websocket-channel/nanobot-channel-protocol",
   # "nanobot-websocket-channel/mcp-webchat",
   # "nanobot-websocket-channel/nanobot-webchat",
@@ -16,6 +16,7 @@ members = [
 
 [tool.uv.sources]
 mcp-lms = { path = "mcp/mcp-lms", editable = true }
+mcp-obs = { path = "mcp/mcp-obs", editable = true }
 
 # Uncomment these later in the lab after you add the matching repos/packages.
 
