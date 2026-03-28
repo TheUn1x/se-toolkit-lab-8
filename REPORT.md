@@ -459,9 +459,10 @@ async def get_items(session: AsyncSession = Depends(get_session)):
         return await read_items(session)
     except SQLAlchemyError as exc:
         logger.error("database_error", extra={"error": str(exc)})
+        # Return 500 Internal Server Error for database failures
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Database service unavailable: {str(exc)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(exc)}",
         ) from exc
     except Exception as exc:
         logger.exception("unexpected_error", extra={"error": str(exc)})
@@ -473,7 +474,7 @@ async def get_items(session: AsyncSession = Depends(get_session)):
 
 **Changes:**
 1. Split exception handling: `SQLAlchemyError` vs generic `Exception`
-2. Return HTTP 503 for database failures (service unavailable)
+2. Return HTTP 500 for database failures (was 404)
 3. Return HTTP 500 for unexpected errors
 4. Log actual error details instead of generic "items_list_failed_as_not_found"
 5. Include error message in HTTP response for debugging
@@ -532,5 +533,5 @@ The system looks healthy.
 - **Scheduled health check created:** ✅ Cron-based job runs every 2 minutes
 - **Proactive reports working:** ✅ Agent posts health updates to chat
 - **Planted bug identified:** ✅ Broad `except Exception` hiding database errors as 404
-- **Bug fixed:** ✅ Now returns 503 for DB failures, 500 for unexpected errors
+- **Bug fixed:** ✅ Now returns HTTP 500 for database failures (was 404)
 - **Recovery verified:** ✅ Agent reports healthy system after PostgreSQL restart

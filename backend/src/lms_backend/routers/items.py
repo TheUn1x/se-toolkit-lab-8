@@ -29,10 +29,10 @@ async def get_items(session: AsyncSession = Depends(get_session)):
                 "error_type": type(exc).__name__,
             },
         )
-        # Return 503 Service Unavailable for database failures
+        # Return 500 Internal Server Error for database failures
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Database service unavailable: {str(exc)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(exc)}",
         ) from exc
     except Exception as exc:
         # Log unexpected errors
