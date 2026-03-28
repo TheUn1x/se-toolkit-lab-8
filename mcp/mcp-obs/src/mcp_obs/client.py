@@ -1,6 +1,7 @@
 """HTTP client for VictoriaLogs and VictoriaTraces APIs."""
 
 import httpx
+import json
 from typing import Any
 
 from mcp_obs.settings import ObservabilitySettings
@@ -43,14 +44,18 @@ class ObservabilityClient:
         response = await self._http.get(url, params=params)
         response.raise_for_status()
         
-        # VictoriaLogs returns JSON with _msg, _stream, etc.
-        data = response.json()
-        if isinstance(data, list):
-            return data
-        elif isinstance(data, dict):
-            # May return single object or wrapped in 'data' key
-            return [data] if data else []
-        return []
+        # VictoriaLogs returns newline-delimited JSON (multiple objects)
+        results = []
+        content = response.text.strip()
+        for line in content.split("\n"):
+            if line.strip():
+                try:
+                    results.append(json.loads(line))
+                except json.JSONDecodeError:
+                    # Skip malformed lines
+                    continue
+        
+        return results
 
     async def logs_error_count(
         self,
