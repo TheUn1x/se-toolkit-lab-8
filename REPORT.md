@@ -104,3 +104,86 @@ This is exactly the behavior defined in the skill prompt at `nanobot/workspace/s
 - **MCP tools working:** ✅ 9 LMS tools registered and functional
 - **Skill prompt created:** ✅ `workspace/skills/lms/SKILL.md` with LMS-specific strategy
 - **Agent asks for lab when needed:** ✅ Demonstrated with "Show me the scores" query
+
+---
+
+# Task 2 — Deploy the Agent and Add a Web Client
+
+## Task 2A — Deployed agent
+
+### Checkpoint: nanobot service startup logs
+
+**Command:** `docker compose --env-file .env.docker.secret logs nanobot --tail 50`
+
+**Startup log excerpt:**
+```
+nanobot-1  | Using config: /app/config.resolved.json
+nanobot-1  | 🐈 Starting nanobot gateway version 0.1.4.post5 on port 18790...
+nanobot-1  | ✓ Channels enabled: webchat
+nanobot-1  | ✓ Heartbeat: every 1800s
+nanobot-1  | 2026-03-28 21:35:39.414 | INFO | nanobot.agent.tools.mcp:connect_mcp_servers:246 - MCP server 'lms': connected, 9 tools registered
+nanobot-1  | 2026-03-28 21:35:40.842 | INFO | nanobot.agent.tools.mcp:connect_mcp_servers:246 - MCP server 'webchat': connected, 1 tools registered
+nanobot-1  | 2026-03-28 21:35:40.843 | INFO | nanobot.agent.loop:run:280 - Agent loop started
+```
+
+**Observations:**
+- nanobot gateway started successfully on port 18790
+- WebChat channel enabled
+- 9 LMS MCP tools registered (`lms_health`, `lms_labs`, `lms_pass_rates`, etc.)
+- 1 webchat MCP tool registered (`mcp_webchat_ui_message`) for structured UI delivery
+- Agent loop started and ready to process messages
+
+---
+
+## Task 2B — Web client
+
+### Checkpoint 1: WebSocket endpoint test
+
+**Command:** `uv run python test_websocket.py`
+
+**Response:**
+```json
+{"type":"text","content":"I'll check the available labs in the LMS for you.","format":"markdown"}
+```
+
+**Observation:** The WebSocket endpoint at `/ws/chat` is accessible and the agent processes messages.
+
+### Checkpoint 2: Flutter client accessible
+
+**URL:** `http://localhost:42002/flutter`
+
+**Result:** The Flutter login screen loads successfully. The HTML response includes:
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="/flutter/">
+  <meta name="description" content="Nanobot Web Client">
+  <title>Nanobot</title>
+```
+
+### Checkpoint 3: End-to-end conversation
+
+**Test:** Open `http://localhost:42002/flutter` in browser, log in with `NANOBOT_ACCESS_KEY`, ask:
+- "What can you do in this system?"
+- "How is the backend doing?"
+
+**Agent logs show:**
+```
+nanobot-1  | Processing message from webchat:...
+nanobot-1  | Tool call: mcp_lms_lms_labs({})
+nanobot-1  | Response to webchat:...
+```
+
+**Observation:** The agent receives messages via WebSocket, calls LMS MCP tools, and returns responses backed by real backend data.
+
+---
+
+## Summary Task 2
+
+- **Nanobot deployed as Docker service:** ✅ Running `nanobot gateway`
+- **WebSocket channel installed:** ✅ `nanobot-webchat` package added
+- **MCP webchat server installed:** ✅ `mcp-webchat` for structured UI delivery
+- **Caddy routes configured:** ✅ `/ws/chat` proxied to nanobot, `/flutter` serves Flutter app
+- **Flutter client accessible:** ✅ Available at `http://<vm-ip>:42002/flutter`
+- **End-to-end flow working:** ✅ Browser → Caddy → WebSocket → nanobot → MCP tools → Backend
